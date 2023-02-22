@@ -125,7 +125,7 @@ class CourseDataset:
           WHEN NOT MATCHED THEN INSERT *
         """
 
-        microBatchDF._jdf.sparkSession().sql(sql_query)
+        microBatchDF.sparkSession.sql(sql_query)
         
     def __batch_upsert(self, microBatchDF, batchId):
         window = Window.partitionBy("customer_id").orderBy(F.col("row_time").desc())
@@ -146,8 +146,34 @@ class CourseDataset:
                   THEN INSERT *
         """
 
-        microBatchDF._jdf.sparkSession().sql(query)
+        microBatchDF.sparkSession.sql(query)
         
+    
+    def __type2_upsert(self, microBatchDF, batch):
+        microBatchDF.createOrReplaceTempView("updates")
+
+        sql_query = """
+            MERGE INTO books_silver
+            USING (
+                SELECT updates.book_id as merge_key, updates.*
+                FROM updates
+
+                UNION ALL
+
+                SELECT NULL as merge_key, updates.*
+                FROM updates
+                JOIN books_silver ON updates.book_id = books_silver.book_id
+                WHERE books_silver.current = true AND updates.price <> books_silver.price
+              ) staged_updates
+            ON books_silver.book_id = merge_key 
+            WHEN MATCHED AND books_silver.current = true AND books_silver.price <> staged_updates.price THEN
+              UPDATE SET current = false, end_date = staged_updates.updated
+            WHEN NOT MATCHED THEN
+              INSERT (book_id, title, author, price, current, effective_date, end_date)
+              VALUES (staged_updates.book_id, staged_updates.title, staged_updates.author, staged_updates.price, true, staged_updates.updated, NULL)
+        """
+
+        microBatchDF.sparkSession.sql(sql_query)
     
     def porcess_orders_silver(self):
         json_schema = "order_id STRING, order_timestamp Timestamp, customer_id STRING, quantity BIGINT, total BIGINT, books ARRAY<STRUCT<book_id STRING, quantity BIGINT, subtotal BIGINT>>"
@@ -191,6 +217,31 @@ class CourseDataset:
                 )
 
         query.awaitTermination()
+    
+    def porcess_books_silver(self):
+        schema = "book_id STRING, title STRING, author STRING, price DOUBLE, updated TIMESTAMP"
+
+        query = (spark.readStream
+                        .table("bronze")
+                        .filter("topic = 'books'")
+                        .select(F.from_json(F.col("value").cast("string"), schema).alias("v"))
+                        .select("v.*")
+                     .writeStream
+                        .foreachBatch(self.__type2_upsert)
+                        .option("checkpointLocation", f"{self.checkpoint}/books_silver")
+                        .trigger(availableNow=True)
+                        .start()
+                )
+
+        query.awaitTermination()
+        
+    def process_current_books(self):
+        spark.sql("""
+            CREATE OR REPLACE TABLE current_books
+            AS SELECT book_id, title, author, price
+               FROM books_silver
+               WHERE current IS TRUE
+        """)
 
 # COMMAND ----------
 
