@@ -84,15 +84,16 @@ class CourseDataset:
             self.__load_json_file(index, streaming_dir, raw_dir)
             index += 1
     
-    def load_new_data(self):
+    def load_new_data(self, num_files = 1):
         streaming_dir = f"{self.location}/kafka-streaming"
         raw_dir = f"{self.location}/kafka-raw"
-        self.__load_data(10, streaming_dir, raw_dir)
+        for i in range(num_files):
+            self.__load_data(10, streaming_dir, raw_dir)
         
     
     def load_books_updates(self):
         streaming_dir = f"{self.location}/books-updates-streaming"
-        raw_dir = f"{self.location}/kafka-raw/books-updates_3"
+        raw_dir = f"{self.location}/kafka-raw/books-updates"
         self.__load_data(5, streaming_dir, raw_dir)
         
     def process_bronze(self):
