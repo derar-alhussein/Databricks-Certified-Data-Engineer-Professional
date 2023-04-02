@@ -2,7 +2,7 @@
 # MAGIC %md-sandbox
 # MAGIC 
 # MAGIC <div  style="text-align: center; line-height: 0; padding-top: 9px;">
-# MAGIC   <img src="https://dalhussein.blob.core.windows.net/course-resources/DE-Pro/images/deletes.png" width="60%">
+# MAGIC   <img src="https://raw.githubusercontent.com/derar-alhussein/Databricks-Certified-Data-Engineer-Professional/main/Includes/images/deletes.png" width="60%">
 # MAGIC </div>
 
 # COMMAND ----------
