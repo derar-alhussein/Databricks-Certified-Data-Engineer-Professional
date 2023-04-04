@@ -95,7 +95,7 @@ display(books_df)
 
 bookstore.load_books_updates()
 bookstore.process_bronze()
-porcess_books()
+process_books()
 
 # COMMAND ----------
 
