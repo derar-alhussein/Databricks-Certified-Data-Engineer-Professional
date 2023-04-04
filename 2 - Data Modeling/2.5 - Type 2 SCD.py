@@ -67,7 +67,7 @@ def type2_upsert(microBatchDF, batch):
 
 # COMMAND ----------
 
-def porcess_books():
+def process_books():
     schema = "book_id STRING, title STRING, author STRING, price DOUBLE, updated TIMESTAMP"
  
     query = (spark.readStream
@@ -84,7 +84,7 @@ def porcess_books():
     
     query.awaitTermination()
     
-porcess_books()
+process_books()
 
 # COMMAND ----------
 
