@@ -83,7 +83,7 @@ porcess_customers_orders()
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT count(*) FROM customers_silver
+# MAGIC SELECT count(*) FROM customers_orders
 
 # COMMAND ----------
 
