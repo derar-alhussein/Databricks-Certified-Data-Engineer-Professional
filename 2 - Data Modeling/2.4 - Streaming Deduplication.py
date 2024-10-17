@@ -1,6 +1,6 @@
 # Databricks notebook source
 # MAGIC %md-sandbox
-# MAGIC 
+# MAGIC
 # MAGIC <div  style="text-align: center; line-height: 0; padding-top: 9px;">
 # MAGIC   <img src="https://raw.githubusercontent.com/derar-alhussein/Databricks-Certified-Data-Engineer-Professional/main/Includes/images/orders.png" width="60%">
 # MAGIC </div>
@@ -62,7 +62,7 @@ def upsert_data(microBatchDF, batch):
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC 
+# MAGIC
 # MAGIC CREATE TABLE IF NOT EXISTS orders_silver
 # MAGIC (order_id STRING, order_timestamp Timestamp, customer_id STRING, quantity BIGINT, total BIGINT, books ARRAY<STRUCT<book_id STRING, quantity BIGINT, subtotal BIGINT>>)
 
@@ -82,7 +82,3 @@ streaming_total = spark.read.table("orders_silver").count()
 
 print(f"batch total: {batch_total}")
 print(f"streaming total: {streaming_total}")
-
-# COMMAND ----------
-
-

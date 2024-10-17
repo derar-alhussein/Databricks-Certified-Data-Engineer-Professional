@@ -1,6 +1,6 @@
 # Databricks notebook source
 # MAGIC %md-sandbox
-# MAGIC 
+# MAGIC
 # MAGIC <div  style="text-align: center; line-height: 0; padding-top: 9px;">
 # MAGIC   <img src="https://raw.githubusercontent.com/derar-alhussein/Databricks-Certified-Data-Engineer-Professional/main/Includes/images/customers_orders.png" width="60%">
 # MAGIC </div>
@@ -44,7 +44,7 @@ def batch_upsert(microBatchDF, batchId):
 
 # COMMAND ----------
 
-def porcess_customers_orders():
+def process_customers_orders():
     orders_df = spark.readStream.table("orders_silver")
     
     cdf_customers_df = (spark.readStream
@@ -64,7 +64,7 @@ def porcess_customers_orders():
     
     query.awaitTermination()
     
-porcess_customers_orders()
+process_customers_orders()
 
 # COMMAND ----------
 
@@ -75,10 +75,10 @@ porcess_customers_orders()
 
 bookstore.load_new_data()
 bookstore.process_bronze()
-bookstore.porcess_orders_silver()
-bookstore.porcess_customers_silver()
+bookstore.process_orders_silver()
+bookstore.process_customers_silver()
 
-porcess_customers_orders()
+process_customers_orders()
 
 # COMMAND ----------
 

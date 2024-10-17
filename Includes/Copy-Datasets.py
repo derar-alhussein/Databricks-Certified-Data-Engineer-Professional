@@ -17,10 +17,11 @@ def path_exists(path):
 # COMMAND ----------
 
 class CourseDataset:
-    def __init__(self, uri, location, checkpoint_path, db_name):
+    def __init__(self, uri, location, checkpoint_path, data_catalog, db_name):
         self.uri = uri
         self.location = location
         self.checkpoint = checkpoint_path
+        self.catalog_name = data_catalog
         self.db_name = db_name
     
     def download_dataset(self):
@@ -37,8 +38,9 @@ class CourseDataset:
     
     
     def create_database(self):
+        spark.sql(f"USE CATALOG {self.catalog_name}")
         spark.sql(f"CREATE SCHEMA IF NOT EXISTS {self.db_name}")
-        spark.sql(f"USE {self.db_name}")
+        spark.sql(f"USE SCHEMA {self.db_name}")
     
     
     def clean_up(self):
@@ -176,7 +178,7 @@ class CourseDataset:
 
         microBatchDF.sparkSession.sql(sql_query)
     
-    def porcess_orders_silver(self):
+    def process_orders_silver(self):
         json_schema = "order_id STRING, order_timestamp Timestamp, customer_id STRING, quantity BIGINT, total BIGINT, books ARRAY<STRUCT<book_id STRING, quantity BIGINT, subtotal BIGINT>>"
         
         deduped_df = (spark.readStream
@@ -197,7 +199,7 @@ class CourseDataset:
         query.awaitTermination()
 
         
-    def porcess_customers_silver(self):
+    def process_customers_silver(self):
         
         schema = "customer_id STRING, email STRING, first_name STRING, last_name STRING, gender STRING, street STRING, city STRING, country_code STRING, row_status STRING, row_time timestamp"
         
@@ -219,7 +221,7 @@ class CourseDataset:
 
         query.awaitTermination()
     
-    def porcess_books_silver(self):
+    def process_books_silver(self):
         schema = "book_id STRING, title STRING, author STRING, price DOUBLE, updated TIMESTAMP"
 
         query = (spark.readStream
@@ -250,9 +252,10 @@ data_source_uri = "wasbs://course-resources@dalhussein.blob.core.windows.net/DE-
 dataset_bookstore = 'dbfs:/mnt/demo-datasets/DE-Pro/bookstore'
 spark.conf.set(f"dataset.bookstore", dataset_bookstore)
 checkpoint_path = "dbfs:/mnt/demo_pro/checkpoints"
+data_catalog = 'hive_metastore'
 db_name = "bookstore_eng_pro"
 
-bookstore = CourseDataset(data_source_uri, dataset_bookstore, checkpoint_path, db_name)
+bookstore = CourseDataset(data_source_uri, dataset_bookstore, checkpoint_path, data_catalog, db_name)
 bookstore.download_dataset()
 bookstore.create_database()
 

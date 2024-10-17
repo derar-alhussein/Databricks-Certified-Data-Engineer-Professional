@@ -1,6 +1,6 @@
 # Databricks notebook source
 # MAGIC %md-sandbox
-# MAGIC 
+# MAGIC
 # MAGIC <div  style="text-align: center; line-height: 0; padding-top: 9px;">
 # MAGIC   <img src="https://raw.githubusercontent.com/derar-alhussein/Databricks-Certified-Data-Engineer-Professional/main/Includes/images/CDF.png" width="60%">
 # MAGIC </div>
@@ -29,8 +29,8 @@
 
 bookstore.load_new_data()
 bookstore.process_bronze()
-bookstore.porcess_orders_silver()
-bookstore.porcess_customers_silver()
+bookstore.process_orders_silver()
+bookstore.process_customers_silver()
 
 # COMMAND ----------
 
@@ -42,8 +42,8 @@ bookstore.porcess_customers_silver()
 
 bookstore.load_new_data()
 bookstore.process_bronze()
-bookstore.porcess_orders_silver()
-bookstore.porcess_customers_silver()
+bookstore.process_orders_silver()
+bookstore.process_customers_silver()
 
 # COMMAND ----------
 

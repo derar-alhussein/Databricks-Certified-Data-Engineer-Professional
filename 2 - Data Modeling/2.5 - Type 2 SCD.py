@@ -1,6 +1,6 @@
 # Databricks notebook source
 # MAGIC %md-sandbox
-# MAGIC 
+# MAGIC
 # MAGIC <div  style="text-align: center; line-height: 0; padding-top: 9px;">
 # MAGIC   <img src="https://raw.githubusercontent.com/derar-alhussein/Databricks-Certified-Data-Engineer-Professional/main/Includes/images/books.png" width="60%">
 # MAGIC </div>
@@ -12,13 +12,16 @@
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC -- NOTE: This cell contains the SQL query for your reference, and won't work if run directly.
+# MAGIC -- The query is used below in the type2_upsert() function as part of the foreachBatch call.
+# MAGIC
 # MAGIC MERGE INTO books_silver
 # MAGIC USING (
 # MAGIC     SELECT updates.book_id as merge_key, updates.*
 # MAGIC     FROM updates
-# MAGIC 
+# MAGIC
 # MAGIC     UNION ALL
-# MAGIC 
+# MAGIC
 # MAGIC     SELECT NULL as merge_key, updates.*
 # MAGIC     FROM updates
 # MAGIC     JOIN books_silver ON updates.book_id = books_silver.book_id
@@ -67,7 +70,7 @@ def type2_upsert(microBatchDF, batch):
 
 # COMMAND ----------
 
-def porcess_books():
+def process_books():
     schema = "book_id STRING, title STRING, author STRING, price DOUBLE, updated TIMESTAMP"
  
     query = (spark.readStream
@@ -84,7 +87,7 @@ def porcess_books():
     
     query.awaitTermination()
     
-porcess_books()
+process_books()
 
 # COMMAND ----------
 
@@ -95,7 +98,7 @@ display(books_df)
 
 bookstore.load_books_updates()
 bookstore.process_bronze()
-porcess_books()
+process_books()
 
 # COMMAND ----------
 
@@ -105,7 +108,7 @@ display(books_df)
 # COMMAND ----------
 
 # MAGIC %md-sandbox
-# MAGIC 
+# MAGIC
 # MAGIC <div  style="text-align: center; line-height: 0; padding-top: 9px;">
 # MAGIC   <img src="https://raw.githubusercontent.com/derar-alhussein/Databricks-Certified-Data-Engineer-Professional/main/Includes/images/current_books.png" width="60%">
 # MAGIC </div>
@@ -124,7 +127,3 @@ display(books_df)
 # MAGIC SELECT *
 # MAGIC FROM current_books
 # MAGIC ORDER BY book_id
-
-# COMMAND ----------
-
-

@@ -1,6 +1,6 @@
 # Databricks notebook source
 # MAGIC %md-sandbox
-# MAGIC 
+# MAGIC
 # MAGIC <div  style="text-align: center; line-height: 0; padding-top: 9px;">
 # MAGIC   <img src="https://raw.githubusercontent.com/derar-alhussein/Databricks-Certified-Data-Engineer-Professional/main/Includes/images/deletes.png" width="60%">
 # MAGIC </div>
@@ -104,7 +104,3 @@ df = (spark.read
            .table("customers_silver")
            .filter("_change_type = 'delete'"))
 display(df)
-
-# COMMAND ----------
-
-

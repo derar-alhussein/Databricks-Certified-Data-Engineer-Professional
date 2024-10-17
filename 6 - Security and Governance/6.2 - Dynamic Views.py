@@ -54,7 +54,3 @@
 
 # MAGIC %sql
 # MAGIC SELECT * FROM customers_fr_vw
-
-# COMMAND ----------
-
-

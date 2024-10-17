@@ -38,7 +38,7 @@ def batch_upsert(microBatchDF, batchId):
 
 # COMMAND ----------
 
-def porcess_customers_orders():
+def process_customers_orders():
     orders_df = spark.readStream.table("orders_silver")
     
     cdf_customers_df = (spark.readStream
@@ -58,4 +58,4 @@ def porcess_customers_orders():
     
     query.awaitTermination()
     
-porcess_customers_orders()
+process_customers_orders()
