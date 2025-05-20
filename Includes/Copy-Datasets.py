@@ -260,11 +260,3 @@ db_name = "bookstore_eng_pro"
 bookstore = CourseDataset(data_source_uri, dataset_bookstore, checkpoint_path, data_catalog, db_name)
 bookstore.download_dataset()
 bookstore.create_database()
-
-# COMMAND ----------
-
-#bookstore.clean_up()
-
-# COMMAND ----------
-
-
