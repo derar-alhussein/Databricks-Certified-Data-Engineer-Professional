@@ -51,7 +51,7 @@ def process_customers_orders():
                 .join(cdf_customers_df, ["customer_id"], "inner")
                 .writeStream
                     .foreachBatch(batch_upsert)
-                    .option("checkpointLocation", "dbfs:/mnt/demo_pro/checkpoints/customers_orders")
+                    .option("checkpointLocation", f"{bookstore.checkpoint_path}/customers_orders")
                     .trigger(availableNow=True)
                     .start()
             )

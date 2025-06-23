@@ -3,12 +3,12 @@
 
 # COMMAND ----------
 
-files = dbutils.fs.ls("dbfs:/user/hive/warehouse/bookstore_eng_pro.db/bronze/_delta_log")
+files = dbutils.fs.ls("/path/to/bronze/_delta_log")
 display(files)
 
 # COMMAND ----------
 
-display(spark.read.json("dbfs:/user/hive/warehouse/bookstore_eng_pro.db/bronze/_delta_log/00000000000000000001.json"))
+display(spark.read.json("/path/to/bronze/_delta_log/00000000000000000001.json"))
 
 # COMMAND ----------
 
@@ -17,13 +17,9 @@ display(spark.read.json("dbfs:/user/hive/warehouse/bookstore_eng_pro.db/bronze/_
 
 # COMMAND ----------
 
-files = dbutils.fs.ls("dbfs:/user/hive/warehouse/bookstore_eng_pro.db/bronze/_delta_log")
+files = dbutils.fs.ls("/path/to/bronze/_delta_log")
 display(files)
 
 # COMMAND ----------
 
-display(spark.read.parquet("dbfs:/user/hive/warehouse/bookstore_eng_pro.db/bronze/_delta_log/00000000000000000010.checkpoint.parquet"))
-
-# COMMAND ----------
-
-
+display(spark.read.parquet("/path/to/bronze/_delta_log/00000000000000000010.checkpoint.parquet"))

@@ -55,7 +55,7 @@ query = (spark.readStream.table("bronze")
         .select("v.*")
         .filter("quantity > 0")
      .writeStream
-        .option("checkpointLocation", "dbfs:/mnt/demo_pro/checkpoints/orders_silver")
+        .option("checkpointLocation", f"{bookstore.checkpoint_path}/orders_silver")
         .trigger(availableNow=True)
         .table("orders_silver"))
 
@@ -78,8 +78,4 @@ query.awaitTermination()
 
 # COMMAND ----------
 
-dbutils.fs.rm("dbfs:/mnt/demo_pro/checkpoints/orders_silver", True)
-
-# COMMAND ----------
-
-
+dbutils.fs.rm(f"{bookstore.checkpoint_path}/orders_silver", True)

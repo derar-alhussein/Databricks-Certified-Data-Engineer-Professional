@@ -80,7 +80,7 @@ def process_books():
                     .select("v.*")
                  .writeStream
                     .foreachBatch(type2_upsert)
-                    .option("checkpointLocation", "dbfs:/mnt/demo_pro/checkpoints/books_silver")
+                    .option("checkpointLocation", f"{bookstore.checkpoint_path}/books_silver")
                     .trigger(availableNow=True)
                     .start()
             )

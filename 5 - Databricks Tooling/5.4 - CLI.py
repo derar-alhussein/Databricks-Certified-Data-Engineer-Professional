@@ -12,7 +12,3 @@ db_password = dbutils.secrets.get("bookstore-dev", "db_password")
 # COMMAND ----------
 
 print(db_password)
-
-# COMMAND ----------
-
-

@@ -8,19 +8,15 @@
 
 # COMMAND ----------
 
-files = dbutils.fs.ls("dbfs:/user/hive/warehouse/bookstore_eng_pro.db/bronze")
+files = dbutils.fs.ls("/path/to/bronze")
 display(files)
 
 # COMMAND ----------
 
-files = dbutils.fs.ls("dbfs:/user/hive/warehouse/bookstore_eng_pro.db/bronze/topic=customers")
+files = dbutils.fs.ls("/path/to/bronze/topic=customers")
 display(files)
 
 # COMMAND ----------
 
-files = dbutils.fs.ls("dbfs:/user/hive/warehouse/bookstore_eng_pro.db/bronze/topic=customers/year_month=2021-12/")
+files = dbutils.fs.ls("/path/to/bronze/topic=customers/year_month=2021-12/")
 display(files)
-
-# COMMAND ----------
-
-

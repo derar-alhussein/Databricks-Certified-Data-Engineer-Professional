@@ -53,18 +53,14 @@ cdf_df = (spark.readStream
                .option("startingVersion", 2)
                .table("customers_silver"))
 
-display(cdf_df)
+display(cdf_df, checkpointLocation = f"{bookstore.checkpoint_path}/tmp/cdf_{time.time()}")
 
 # COMMAND ----------
 
-files = dbutils.fs.ls("dbfs:/user/hive/warehouse/bookstore_eng_pro.db/customers_silver")
+files = dbutils.fs.ls("/path/to/customers_silver")
 display(files)
 
 # COMMAND ----------
 
-files = dbutils.fs.ls("dbfs:/user/hive/warehouse/bookstore_eng_pro.db/customers_silver/_change_data")
+files = dbutils.fs.ls("/path/to/customers_silver/_change_data")
 display(files)
-
-# COMMAND ----------
-
-

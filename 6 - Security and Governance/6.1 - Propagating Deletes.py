@@ -26,7 +26,7 @@ schema = "customer_id STRING, email STRING, first_name STRING, last_name STRING,
                 F.lit("requested").alias("status"))
     .writeStream
         .outputMode("append")
-        .option("checkpointLocation", "dbfs:/mnt/demo_pro/checkpoints/delete_requests")
+        .option("checkpointLocation", f"{bookstore.checkpoint_path}/delete_requests")
         .trigger(availableNow=True)
         .table("delete_requests")
 )
@@ -75,7 +75,7 @@ def process_deletes(microBatchDF, batchId):
 
 (deleteDF.writeStream
          .foreachBatch(process_deletes)
-         .option("checkpointLocation", "dbfs:/mnt/demo_pro/checkpoints/deletes")
+         .option("checkpointLocation", f"{bookstore.checkpoint_path}/deletes")
          .trigger(availableNow=True)
          .start())
 

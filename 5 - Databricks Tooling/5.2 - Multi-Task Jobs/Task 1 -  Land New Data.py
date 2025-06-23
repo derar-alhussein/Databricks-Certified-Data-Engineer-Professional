@@ -3,8 +3,8 @@
 
 # COMMAND ----------
 
-spark.conf.set("spark.databricks.delta.optimizeWrite.enabled", True)
-spark.conf.set("spark.databricks.delta.autoCompact.enabled", True)
+#spark.conf.set("spark.databricks.delta.optimizeWrite.enabled", True)
+#spark.conf.set("spark.databricks.delta.autoCompact.enabled", True)
 
 # COMMAND ----------
 
