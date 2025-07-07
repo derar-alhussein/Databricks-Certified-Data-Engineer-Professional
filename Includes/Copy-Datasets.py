@@ -254,8 +254,10 @@ spark.conf.set(f"dataset.bookstore", dataset_bookstore)
 spark.conf.set("fs.s3a.endpoint", "s3.eu-west-3.amazonaws.com")
 spark.conf.set("fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider")
 checkpoint_path = "dbfs:/mnt/demo_pro/checkpoints"
-data_catalog = 'hive_metastore'
-db_name = "bookstore_eng_pro"
+data_catalog = 'dbdemos'
+db_name = "engineer_professional_databricks"
+
+#dbdemos.engineer_professional_databricks
 
 bookstore = CourseDataset(data_source_uri, dataset_bookstore, checkpoint_path, data_catalog, db_name)
 bookstore.download_dataset()

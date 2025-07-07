@@ -82,3 +82,7 @@ query.awaitTermination()
 # MAGIC %sql
 # MAGIC SELECT *
 # MAGIC FROM orders_silver
+
+# COMMAND ----------
+
+
