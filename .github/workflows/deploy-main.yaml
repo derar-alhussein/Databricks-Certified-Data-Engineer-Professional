@@ -1,0 +1,30 @@
+name: CI - Type & Lint Check for Develop
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+
+jobs:
+  quality-check:
+    name: Ruff and mypy checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install PDM and dependencies
+        run: pip install requirements.txt
+
+      - name: Lint with Ruff
+        run: ruff check .
+
+      - name: Type check with mypy + pyspark-stubs
+        run: mypy . --exclude tests
