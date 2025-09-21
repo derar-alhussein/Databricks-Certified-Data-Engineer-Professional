@@ -8,18 +8,29 @@
 
 # COMMAND ----------
 
-files = dbutils.fs.ls("dbfs:/user/hive/warehouse/bookstore_eng_pro.db/bronze")
-display(files)
+df = spark.table(
+    "bookstore_eng_pro.bronze"
+)
+display(df)
 
 # COMMAND ----------
 
-files = dbutils.fs.ls("dbfs:/user/hive/warehouse/bookstore_eng_pro.db/bronze/topic=customers")
-display(files)
+df = spark.table(
+    "bookstore_eng_pro.bronze"
+).where(
+    col("topic") == "customers"
+)
+display(df)
 
 # COMMAND ----------
 
-files = dbutils.fs.ls("dbfs:/user/hive/warehouse/bookstore_eng_pro.db/bronze/topic=customers/year_month=2021-12/")
-display(files)
+df = spark.table(
+    "bookstore_eng_pro.bronze"
+).where(
+    (col("topic") == "customers") &
+    (col("year_month") == "2021-12")
+)
+display(df)
 
 # COMMAND ----------
 

@@ -80,7 +80,7 @@ def process_books():
                     .select("v.*")
                  .writeStream
                     .foreachBatch(type2_upsert)
-                    .option("checkpointLocation", "dbfs:/mnt/demo_pro/checkpoints/books_silver")
+                    .option("checkpointLocation", "/Volumes/udemy/default/vrams/demo_pro/checkpoints/books_silver")
                     .trigger(availableNow=True)
                     .start()
             )

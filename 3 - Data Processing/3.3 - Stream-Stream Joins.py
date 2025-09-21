@@ -14,7 +14,7 @@
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
 
-def batch_upsert(microBatchDF, batchId):
+def batch_upsert_1(microBatchDF, batchId):
     window = Window.partitionBy("order_id", "customer_id").orderBy(F.col("_commit_timestamp").desc())
     
     (microBatchDF.filter(F.col("_change_type").isin(["insert", "update_postimage"]))
@@ -48,7 +48,7 @@ def process_customers_orders():
     orders_df = spark.readStream.table("orders_silver")
     
     cdf_customers_df = (spark.readStream
-                             .option("readChangeData", True)
+                             .option("readChangeFeed", True)
                              .option("startingVersion", 2)
                              .table("customers_silver")
                        )
@@ -56,8 +56,8 @@ def process_customers_orders():
     query = (orders_df
                 .join(cdf_customers_df, ["customer_id"], "inner")
                 .writeStream
-                    .foreachBatch(batch_upsert)
-                    .option("checkpointLocation", "dbfs:/mnt/demo_pro/checkpoints/customers_orders")
+                    .foreachBatch(batch_upsert_1)
+                    .option("checkpointLocation", f"{checkpoint_path}/customers_orders")
                     .trigger(availableNow=True)
                     .start()
             )
@@ -73,10 +73,12 @@ process_customers_orders()
 
 # COMMAND ----------
 
+#. Please delete checkpoint for customers_oders before running this
+# 
 bookstore.load_new_data()
 bookstore.process_bronze()
 bookstore.process_orders_silver()
-bookstore.process_customers_silver()
+process_customers_silver()
 
 process_customers_orders()
 

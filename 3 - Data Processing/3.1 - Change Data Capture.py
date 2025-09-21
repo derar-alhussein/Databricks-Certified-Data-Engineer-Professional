@@ -78,6 +78,11 @@ def batch_upsert(microBatchDF, batchId):
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC drop table customers_silver
+
+# COMMAND ----------
+
+# MAGIC %sql
 # MAGIC CREATE TABLE IF NOT EXISTS customers_silver
 # MAGIC (customer_id STRING, email STRING, first_name STRING, last_name STRING, gender STRING, street STRING, city STRING, country STRING, row_time TIMESTAMP)
 
@@ -96,12 +101,17 @@ query = (spark.readStream
                   .join(F.broadcast(df_country_lookup), F.col("country_code") == F.col("code") , "inner")
                .writeStream
                   .foreachBatch(batch_upsert)
-                  .option("checkpointLocation", "dbfs:/mnt/demo_pro/checkpoints/customers_silver")
+                  .option("checkpointLocation", "Volumes/udemy/default/vrams/demo_pro/checkpoints/customers_silver")
                   .trigger(availableNow=True)
                   .start()
           )
 
 query.awaitTermination()
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select * from customers_silver
 
 # COMMAND ----------
 

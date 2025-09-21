@@ -53,7 +53,9 @@ def type2_upsert(batch_df, batch_id):
 
 from pyspark.sql import functions as F, Window
 
+from pyspark.sql import functions as F, Window
 from delta.tables import DeltaTable
+
 
 def type2a_upsert(microBatchDF, batch_id):
     spark = microBatchDF.sparkSession  # get session from the microbatch
@@ -91,7 +93,7 @@ def type2a_upsert(microBatchDF, batch_id):
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
 
-def batch_upsert(microBatchDF, batchId):
+def batch_upsert_bkp(microBatchDF, batchId):
     try:
         # Force evaluation to an actual table on the cluster side
         df = microBatchDF.localCheckpoint(eager=True)
@@ -138,6 +140,82 @@ def batch_upsert(microBatchDF, batchId):
 
 from pyspark.sql import functions as F, Window
 
+def batch_upsert(df, batch_id, df_country_lookup):
+    # Only process inserts and update_postimage rows
+    filtered_df = df.filter(F.col("_change_type").isin("insert", "update_postimage"))
+
+    window = Window.partitionBy("customer_id").orderBy(F.col("_commit_timestamp").desc())
+    ranked_df = (
+        filtered_df
+            .withColumn("rank", F.rank().over(window))
+            .filter(F.col("rank") == 1)
+            .drop("rank")
+    )
+
+    enriched_df = ranked_df.join(
+        F.broadcast(df_country_lookup),
+        ranked_df.country_code == df_country_lookup.code,
+        "left"
+    )
+
+    # Write to a curated silver_latest table (or merge logic if needed)
+    enriched_df.write.format("delta").mode("append").saveAsTable("customers_silver_latest")
+
+
+def process_customers_silver_combined():
+    schema = """
+        customer_id STRING,
+        email STRING,
+        first_name STRING,
+        last_name STRING,
+        gender STRING,
+        street STRING,
+        city STRING,
+        country STRING,
+        country_code STRING,
+        row_status STRING,
+        row_time TIMESTAMP
+    """
+
+    base_path = "/Volumes/udemy/default/vrams/demo-datasets/DE-Pro/bookstore"
+    checkpoint = "/Volumes/udemy/default/vrams/demo_pro/checkpoints"
+
+    df_country_lookup = spark.read.json(f"{base_path}/country_lookup/country_lookup.json")
+
+    # --- Step 1: Bronze → Silver base table ---
+    q1 = (
+        spark.readStream
+            .table("bronze")
+            .filter("topic = 'customers'")
+            .select(F.from_json(F.col("value").cast("string"), schema).alias("v"))
+            .select("v.*")
+            .writeStream
+            .format("delta")
+            .outputMode("append")
+            .option("checkpointLocation", f"{checkpoint}/customers_silver_raw")
+            .trigger(availableNow=True)  # must be before start
+            .toTable("customers_silver")
+    )
+    q1.awaitTermination()
+
+    # --- Step 2: Silver (CDF) → foreachBatch ---
+    cdf_df = (
+        spark.readStream
+            .format("delta")
+            .option("readChangeFeed", "true")
+            .option("startingVersion", 2)  # adjust this as needed
+            .table("customers_silver")
+    )
+
+    q2 = (
+        cdf_df.writeStream
+            .foreachBatch(lambda df, batch_id: batch_upsert(df, batch_id, df_country_lookup))
+            .option("checkpointLocation", f"{checkpoint}/customers_silver_cdf")
+            .trigger(availableNow=True)
+            .start()
+    )
+    q2.awaitTermination()
+
 # ---------------------------------------------
 # Standalone streaming trigger
 # ---------------------------------------------
@@ -167,7 +245,7 @@ def process_customers_silver():
                 .select("v.*")
                 .join(F.broadcast(df_country_lookup), F.col("country_code") == F.col("code"), "inner")
              .writeStream
-                .foreachBatch(batch_upsert)
+                .foreachBatch(batch_upsert_bkp)
                 .outputMode("update")
                 .option("checkpointLocation", f"{checkpoint}/customers_silver")
                 .trigger(availableNow=True)
@@ -374,7 +452,68 @@ class CourseDataset:
                    .start())
 
         query.awaitTermination()
+
+
+    def process_customers_silver_7(self):
+        """
+        Reads streaming data from bronze and upserts into customers_silver.
+        """
+        schema = """
+            customer_id STRING,
+            email STRING,
+            first_name STRING,
+            last_name STRING,
+            gender STRING,
+            street STRING,
+            city STRING,
+            country_code STRING,
+            row_status STRING,
+            row_time TIMESTAMP
+        """
+
+        # Load small lookup table (static)
+        df_country_lookup = self.spark.read.json(f"{self.location}/country_lookup")
+
+        # Streaming read from bronze
+        query = (
+            self.spark.readStream
+                .table("bronze")
+                .filter("topic = 'customers'")
+                .select(F.from_json(F.col("value").cast("string"), schema).alias("v"))
+                .select("v.*")
+                .join(F.broadcast(df_country_lookup), F.col("country_code") == F.col("code"), "inner")
+                .writeStream
+                .foreachBatch(lambda df, batchId: batch_upsert(df, batchId, self.spark))
+                .outputMode("update")
+                .option("checkpointLocation", checkpoint)
+                .trigger(availableNow=True)
+                .start()
+        )
+
+        query.awaitTermination()
         
+    def process_customers_silver_2(self):
+        
+        schema = "customer_id STRING, email STRING, first_name STRING, last_name STRING, gender STRING, street STRING, city STRING, country_code STRING, row_status STRING, row_time timestamp"
+        
+        df_country_lookup = spark.read.json(f"{self.location}/country_lookup")
+
+        query = (spark.readStream
+                          .table("bronze")
+                          .filter("topic = 'customers'")
+                          .select(F.from_json(F.col("value").cast("string"), schema).alias("v"))
+                          .select("v.*")
+                          .join(F.broadcast(df_country_lookup), F.col("country_code") == F.col("code") , "inner")
+                       .writeStream
+                          .foreachBatch(lambda df, batchId: batch_upsert(df, batchId, self.spark, self.checkpoint))
+                          .outputMode("update")
+                          .option("checkpointLocation", f"{self.checkpoint}/customers_silver")
+                          .trigger(availableNow=True)
+                          .start()
+                )
+
+        query.awaitTermination()
+
 
     def process_books_silver(self):
         schema = "book_id STRING, title STRING, author STRING, price DOUBLE, updated TIMESTAMP"

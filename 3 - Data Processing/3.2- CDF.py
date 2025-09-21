@@ -27,10 +27,15 @@
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC
+
+# COMMAND ----------
+
 bookstore.load_new_data()
 bookstore.process_bronze()
 bookstore.process_orders_silver()
-bookstore.process_customers_silver()
+process_customers_silver()
 
 # COMMAND ----------
 
@@ -43,27 +48,30 @@ bookstore.process_customers_silver()
 bookstore.load_new_data()
 bookstore.process_bronze()
 bookstore.process_orders_silver()
-bookstore.process_customers_silver()
+process_customers_silver()
 
 # COMMAND ----------
 
 cdf_df = (spark.readStream
                .format("delta")
-               .option("readChangeData", True)
+               .option("readChangeFeed", True)
                .option("startingVersion", 2)
                .table("customers_silver"))
 
-display(cdf_df)
+display(
+    cdf_df,
+    checkpointLocation = f"{checkpoint_path}/customers_silver_cdf",
+)
 
 # COMMAND ----------
 
-files = dbutils.fs.ls("dbfs:/user/hive/warehouse/bookstore_eng_pro.db/customers_silver")
-display(files)
+df = spark.table("bookstore_eng_pro.customers_silver")
+display(df)
 
 # COMMAND ----------
 
-files = dbutils.fs.ls("dbfs:/user/hive/warehouse/bookstore_eng_pro.db/customers_silver/_change_data")
-display(files)
+df = spark.table("bookstore_eng_pro.customers_silver")
+display(df)
 
 # COMMAND ----------
 

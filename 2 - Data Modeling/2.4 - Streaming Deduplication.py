@@ -70,7 +70,7 @@ def upsert_data(microBatchDF, batch):
 
 query = (deduped_df.writeStream
                    .foreachBatch(upsert_data)
-                   .option("checkpointLocation", "dbfs:/mnt/demo_pro/checkpoints/orders_silver")
+                   .option("checkpointLocation", f"{checkpoint_path}/orders_silver")
                    .trigger(availableNow=True)
                    .start())
 
@@ -82,3 +82,8 @@ streaming_total = spark.read.table("orders_silver").count()
 
 print(f"batch total: {batch_total}")
 print(f"streaming total: {streaming_total}")
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select * from orders_silver

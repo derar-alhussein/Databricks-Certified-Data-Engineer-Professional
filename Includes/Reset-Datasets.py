@@ -16,185 +16,8 @@ def path_exists(path):
 
 # COMMAND ----------
 
-from pyspark.sql.functions import expr, col, min
-
-def type2_upsert(batch_df, batch_id):
-    exploded_df = (
-        batch_df
-        .withColumn("book", expr("explode(books)"))
-        .withColumn("book_id", col("book.book_id"))
-        .drop("book")
-    )
-
-    # Aggregate to ensure one row per book_id
-    staged_updates = (
-        exploded_df
-        .groupBy("book_id")
-        .agg(
-            min("order_timestamp").alias("effective_date")
-        )
-    )
-
-    staged_updates.createOrReplaceTempView("staged_updates")
-
-    batch_df.sparkSession.sql("""
-        MERGE INTO udemy.bookstore_eng_pro.books_silver AS books_silver
-        USING staged_updates
-        ON books_silver.book_id = staged_updates.book_id
-        WHEN MATCHED AND books_silver.current = true THEN
-          UPDATE SET current = false, end_date = staged_updates.effective_date
-        WHEN NOT MATCHED THEN
-          INSERT (
-            book_id, current, effective_date, end_date
-          ) VALUES (
-            staged_updates.book_id, true, staged_updates.effective_date, null
-          )
-    """)
-
-from pyspark.sql import functions as F, Window
-
-from delta.tables import DeltaTable
-
-def type2a_upsert(microBatchDF, batch_id):
-    spark = microBatchDF.sparkSession  # get session from the microbatch
-
-    microBatchDF.createOrReplaceTempView("updates")
-
-    sql_query = """
-        MERGE INTO books_silver
-        USING (
-            SELECT updates.book_id as merge_key, updates.*
-            FROM updates
-
-            UNION ALL
-
-            SELECT NULL as merge_key, updates.*
-            FROM updates
-            JOIN books_silver ON updates.book_id = books_silver.book_id
-            WHERE books_silver.current = true AND updates.price <> books_silver.price
-        ) staged_updates
-        ON books_silver.book_id = merge_key 
-        WHEN MATCHED AND books_silver.current = true AND books_silver.price <> staged_updates.price THEN
-          UPDATE SET current = false, end_date = staged_updates.updated
-        WHEN NOT MATCHED THEN
-          INSERT (book_id, title, author, price, current, effective_date, end_date)
-          VALUES (staged_updates.book_id, staged_updates.title, staged_updates.author, staged_updates.price, true, staged_updates.updated, NULL)
-    """
-
-    spark.sql(sql_query)
-
-    def __init__(self, spark, location, checkpoint):
-        self.spark = spark
-        self.location = location
-        self.checkpoint = checkpoint
-
-from pyspark.sql import functions as F
-from pyspark.sql.window import Window
-
-def batch_upsert(microBatchDF, batchId):
-    try:
-        # Force evaluation to an actual table on the cluster side
-        df = microBatchDF.localCheckpoint(eager=True)
-
-        window = Window.partitionBy("customer_id").orderBy(F.col("row_time").desc())
-
-        ranked_df = (df
-            .filter(F.col("row_status").isin(["insert", "update"]))
-            .withColumn("rank", F.rank().over(window))
-            .filter(F.col("rank") == 1)
-            .drop("rank")
-        )
-
-        # Register as a temp view
-        view_name = f"ranked_updates_{batchId}"
-        ranked_df.createOrReplaceTempView(view_name)
-
-        merge_sql = f"""
-        MERGE INTO customers_silver AS c
-        USING {view_name} AS r
-        ON c.customer_id = r.customer_id
-        WHEN MATCHED AND c.row_time < r.row_time THEN UPDATE SET
-          c.email = r.email,
-          c.first_name = r.first_name,
-          c.last_name = r.last_name,
-          c.gender = r.gender,
-          c.street = r.street,
-          c.city = r.city,
-          c.country = r.country,           -- ✅ must match actual column names
-          c.row_time = r.row_time
-        WHEN NOT MATCHED THEN INSERT (
-          customer_id, email, first_name, last_name, gender, street, city, country, row_time
-        ) VALUES (
-          r.customer_id, r.email, r.first_name, r.last_name, r.gender, r.street, r.city, r.country, r.row_time
-        )
-        """
-
-        microBatchDF.sparkSession.sql(merge_sql)
-        print(f"Batch {batchId} processed successfully.")
-
-    except Exception as e:
-        print(f"Error in batch {batchId}: {e}")
-        raise
-
-from pyspark.sql import functions as F, Window
-
-# ---------------------------------------------
-# Standalone streaming trigger
-# ---------------------------------------------
-def process_customers_silver():
-    schema = """
-        customer_id STRING,
-        email STRING,
-        first_name STRING,
-        last_name STRING,
-        gender STRING,
-        street STRING,
-        city STRING,
-        country_code STRING,
-        row_status STRING,
-        row_time TIMESTAMP
-    """
-
-    location = "/Volumes/udemy/default/vrams/demo-datasets/DE-Pro/bookstore"
-    checkpoint = "/Volumes/udemy/default/vrams/demo_pro/checkpoints"
-
-    df_country_lookup = spark.read.json(f"{location}/country_lookup/country_lookup.json")
-
-    query = (spark.readStream
-                .table("bronze")
-                .filter("topic = 'customers'")
-                .select(F.from_json(F.col("value").cast("string"), schema).alias("v"))
-                .select("v.*")
-                .join(F.broadcast(df_country_lookup), F.col("country_code") == F.col("code"), "inner")
-             .writeStream
-                .foreachBatch(batch_upsert)
-                .outputMode("update")
-                .option("checkpointLocation", f"{checkpoint}/customers_silver")
-                .trigger(availableNow=True)
-                .start()
-            )
-
-    query.awaitTermination()
-
-from pyspark.sql import SparkSession, functions as F
-from pyspark.sql.types import StructType, StructField, StringType, TimestampType
-
-
-def upsert_data(microBatchDF, batch):
-        microBatchDF.createOrReplaceTempView("orders_microbatch")
-    
-        sql_query = """
-          MERGE INTO orders_silver a
-          USING orders_microbatch b
-          ON a.order_id=b.order_id AND a.order_timestamp=b.order_timestamp
-          WHEN NOT MATCHED THEN INSERT *
-        """
-
-        microBatchDF.sparkSession.sql(sql_query)
-
 class CourseDataset:
-    def __init__(self, spark, uri, location, checkpoint_path, data_catalog, db_name):
-        self.spark = spark
+    def __init__(self, uri, location, checkpoint_path, data_catalog, db_name):
         self.uri = uri
         self.location = location
         self.checkpoint = checkpoint_path
@@ -223,6 +46,7 @@ class CourseDataset:
     def clean_up(self):
         print("Removing Checkpoints ...")
         dbutils.fs.rm(self.checkpoint, True)
+        spark.sql(f"USE CATALOG {self.catalog_name}")
         print("Dropping Database ...")
         spark.sql(f"DROP SCHEMA IF EXISTS {self.db_name} CASCADE")
         print("Removing Dataset ...")
@@ -307,7 +131,7 @@ class CourseDataset:
 
         microBatchDF.sparkSession.sql(sql_query)
         
-    def __batch_upsert_old(self, microBatchDF, batchId):
+    def __batch_upsert(self, microBatchDF, batchId):
         window = Window.partitionBy("customer_id").orderBy(F.col("row_time").desc())
         
         (microBatchDF.filter(F.col("row_status").isin(["insert", "update"]))
@@ -328,7 +152,7 @@ class CourseDataset:
 
         microBatchDF.sparkSession.sql(query)
         
-
+    
     def __type2_upsert(self, microBatchDF, batch):
         microBatchDF.createOrReplaceTempView("updates")
 
@@ -354,7 +178,7 @@ class CourseDataset:
         """
 
         microBatchDF.sparkSession.sql(sql_query)
-
+    
     def process_orders_silver(self):
         json_schema = "order_id STRING, order_timestamp Timestamp, customer_id STRING, quantity BIGINT, total BIGINT, books ARRAY<STRUCT<book_id STRING, quantity BIGINT, subtotal BIGINT>>"
         
@@ -367,15 +191,37 @@ class CourseDataset:
                    .dropDuplicates(["order_id", "order_timestamp"]))
         
         query = (deduped_df.writeStream
-                   .foreachBatch(upsert_data)
+                   .foreachBatch(self.__upsert_data)
                    .outputMode("update")
                    .option("checkpointLocation", f"{self.checkpoint}/orders_silver")
                    .trigger(availableNow=True)
                    .start())
 
         query.awaitTermination()
-        
 
+        
+    def process_customers_silver(self):
+        
+        schema = "customer_id STRING, email STRING, first_name STRING, last_name STRING, gender STRING, street STRING, city STRING, country_code STRING, row_status STRING, row_time timestamp"
+        
+        df_country_lookup = spark.read.json(f"{self.location}/country_lookup")
+
+        query = (spark.readStream
+                          .table("bronze")
+                          .filter("topic = 'customers'")
+                          .select(F.from_json(F.col("value").cast("string"), schema).alias("v"))
+                          .select("v.*")
+                          .join(F.broadcast(df_country_lookup), F.col("country_code") == F.col("code") , "inner")
+                       .writeStream
+                          .foreachBatch(self.__batch_upsert)
+                          .outputMode("update")
+                          .option("checkpointLocation", f"{self.checkpoint}/customers_silver")
+                          .trigger(availableNow=True)
+                          .start()
+                )
+
+        query.awaitTermination()
+    
     def process_books_silver(self):
         schema = "book_id STRING, title STRING, author STRING, price DOUBLE, updated TIMESTAMP"
 
@@ -385,7 +231,7 @@ class CourseDataset:
                         .select(F.from_json(F.col("value").cast("string"), schema).alias("v"))
                         .select("v.*")
                      .writeStream
-                        .foreachBatch(type2a_upsert)
+                        .foreachBatch(self.__type2_upsert)
                         .option("checkpointLocation", f"{self.checkpoint}/books_silver")
                         .trigger(availableNow=True)
                         .start()
@@ -409,6 +255,5 @@ checkpoint_path = "/Volumes/udemy/default/vrams/demo_pro/checkpoints"
 data_catalog = 'udemy'
 db_name = "bookstore_eng_pro"
 
-bookstore = CourseDataset(spark, data_source_uri, dataset_bookstore, checkpoint_path, data_catalog, db_name)
-bookstore.download_dataset()
-bookstore.create_database()
+bookstore = CourseDataset(data_source_uri, dataset_bookstore, checkpoint_path, data_catalog, db_name)
+bookstore.clean_up()

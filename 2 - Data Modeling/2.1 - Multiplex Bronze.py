@@ -35,7 +35,7 @@ def process_bronze():
                         .withColumn("timestamp", (F.col("timestamp")/1000).cast("timestamp"))  
                         .withColumn("year_month", F.date_format("timestamp", "yyyy-MM"))
                   .writeStream
-                      .option("checkpointLocation", "dbfs:/mnt/demo_pro/checkpoints/bronze")
+                      .option("checkpointLocation", "/Volumes/udemy/default/vrams/demo_pro/checkpoints/bronze")
                       .option("mergeSchema", True)
                       .partitionBy("topic", "year_month")
                       .trigger(availableNow=True)
@@ -60,8 +60,9 @@ display(batch_df)
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT DISTINCT(topic)
+# MAGIC SELECT DISTINCT(topic), count(*)
 # MAGIC FROM bronze
+# MAGIC group by topic
 
 # COMMAND ----------
 
@@ -74,4 +75,16 @@ process_bronze()
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC SELECT * FROM bronze
+
+# COMMAND ----------
+
+# MAGIC %sql
 # MAGIC SELECT COUNT(*) FROM bronze
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT DISTINCT(topic), count(*)
+# MAGIC FROM bronze
+# MAGIC group by topic
