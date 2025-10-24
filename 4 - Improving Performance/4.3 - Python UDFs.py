@@ -1,5 +1,9 @@
 # Databricks notebook source
-df_books = spark.table("books")
+# MAGIC %run ../Includes/Copy-Datasets
+
+# COMMAND ----------
+
+df_books = spark.table("books_silver")
 display(df_books)
 
 # COMMAND ----------
@@ -35,7 +39,7 @@ display(df_discounts)
 
 # MAGIC %sql
 # MAGIC SELECT price, apply_discount_sql_udf(price, 50) AS price_after_discount
-# MAGIC FROM books
+# MAGIC FROM books_silver
 
 # COMMAND ----------
 
@@ -81,8 +85,4 @@ spark.udf.register("sql_vectorized_udf", vectorized_udf)
 
 # MAGIC %sql
 # MAGIC SELECT price, sql_vectorized_udf(price, 50) AS price_after_discount
-# MAGIC FROM books
-
-# COMMAND ----------
-
-
+# MAGIC FROM books_silver
