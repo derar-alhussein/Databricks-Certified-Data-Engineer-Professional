@@ -1,6 +1,7 @@
 # Databricks notebook source
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
+import time
 
 # COMMAND ----------
 
@@ -9,7 +10,9 @@ def path_exists(path):
     dbutils.fs.ls(path)
     return True
   except Exception as e:
-    if 'java.io.FileNotFoundException' in str(e):
+    msg = str(e)
+    if ("com.databricks.sql.io.CloudFileNotFoundException" in msg
+        or "java.io.FileNotFoundException" in msg):
       return False
     else:
       raise
@@ -17,16 +20,24 @@ def path_exists(path):
 # COMMAND ----------
 
 class CourseDataset:
-    def __init__(self, uri, location, checkpoint_path, data_catalog, db_name):
+    def __init__(self, uri, data_catalog, db_name, location=None, checkpoint=None):
         self.uri = uri
-        self.location = location
-        self.checkpoint = checkpoint_path
+        self.dataset_path = location
+        self.checkpoint_path = checkpoint
         self.catalog_name = data_catalog
         self.db_name = db_name
     
     def download_dataset(self):
         source = self.uri
-        target = self.location
+        target = self.dataset_path
+
+        if self.catalog_name == "hive_metastore":
+            try:
+                spark.conf.set("fs.s3a.endpoint", "s3.eu-west-3.amazonaws.com")
+                spark.conf.set("fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider")
+            except:
+                pass
+
         files = dbutils.fs.ls(source)
 
         for f in files:
@@ -41,17 +52,41 @@ class CourseDataset:
         spark.sql(f"USE CATALOG {self.catalog_name}")
         spark.sql(f"CREATE SCHEMA IF NOT EXISTS {self.db_name}")
         spark.sql(f"USE SCHEMA {self.db_name}")
+
+        print(f"Data catalog: {self.catalog_name}")
+        print(f"Schema: {self.db_name}")
+
+        self.__configure_directories()
     
     
     def clean_up(self):
-        print("Removing Checkpoints ...")
-        dbutils.fs.rm(self.checkpoint, True)
-        print("Dropping Database ...")
-        spark.sql(f"DROP SCHEMA IF EXISTS {self.db_name} CASCADE")
-        print("Removing Dataset ...")
-        dbutils.fs.rm(self.location, True)
+        if self.catalog_name == "hive_metastore":
+            print("Removing Checkpoints ...")
+            dbutils.fs.rm(self.checkpoint_path, True)
+            print("Dropping Database ...")
+            spark.sql(f"DROP SCHEMA IF EXISTS {self.db_name} CASCADE")
+            print("Removing Dataset ...")
+            dbutils.fs.rm(self.dataset_path, True)
+        else:
+            print("Dropping Database, Dataset, and Checkpoints ...")
+            spark.sql(f"DROP SCHEMA IF EXISTS {self.db_name} CASCADE")
         print("Done")
 
+
+    def __configure_directories(self):
+        dataset_volume_name = "dataset"
+        checkpoints_volume_name = "checkpoints"
+
+        if self.catalog_name == "hive_metastore":
+            self.dataset_path = 'dbfs:/mnt/demo-datasets/DE-Pro/bookstore'
+            self.checkpoint_path = "dbfs:/mnt/demo_pro/checkpoints"
+        else:
+            volume_root = f"/Volumes/{self.catalog_name}/{self.db_name}"
+            self.dataset_path = f"{volume_root}/{dataset_volume_name}"
+            self.checkpoint_path = f"{volume_root}/{checkpoints_volume_name}"
+            
+            spark.sql(f"CREATE VOLUME IF NOT EXISTS {dataset_volume_name}")
+            spark.sql(f"CREATE VOLUME IF NOT EXISTS {checkpoints_volume_name}")
     
     def __get_index(self, dir):
         try:
@@ -77,6 +112,7 @@ class CourseDataset:
         index = self.__get_index(raw_dir)
         if index > max:
             print("No more data to load\n")
+            return 0
 
         elif all == True:
             while index <= max:
@@ -85,19 +121,31 @@ class CourseDataset:
         else:
             self.__load_json_file(index, streaming_dir, raw_dir)
             index += 1
+
+        return 1
     
     def load_new_data(self, num_files = 1):
-        streaming_dir = f"{self.location}/kafka-streaming"
-        raw_dir = f"{self.location}/kafka-raw"
+        streaming_dir = f"{self.dataset_path}/kafka-streaming"
+        raw_dir = f"{self.dataset_path}/kafka-raw"
         for i in range(num_files):
             self.__load_data(10, streaming_dir, raw_dir)
-        
-    
+
     def load_books_updates(self):
-        streaming_dir = f"{self.location}/books-updates-streaming"
-        raw_dir = f"{self.location}/kafka-raw/books-updates"
+        streaming_dir = f"{self.dataset_path}/books-updates-streaming"
+        raw_dir = f"{self.dataset_path}/kafka-raw/books-updates"
         self.__load_data(5, streaming_dir, raw_dir)
-        
+
+    def load_pipeline_data(self):
+        streaming_dir = f"{self.dataset_path}/kafka-streaming"
+        raw_dir = f"{self.dataset_path}/kafka-raw-etl"
+        n = self.__load_data(10, streaming_dir, raw_dir)
+
+        books_streaming_dir = f"{self.dataset_path}/books-updates-streaming"
+        books_raw_dir = f"{self.dataset_path}/kafka-raw-etl/books-updates"
+        m = self.__load_data(5, books_streaming_dir, books_raw_dir)
+
+        return n + m
+ 
     def process_bronze(self):
         schema = "key BINARY, value BINARY, topic STRING, partition LONG, offset LONG, timestamp LONG"
 
@@ -105,20 +153,20 @@ class CourseDataset:
                             .format("cloudFiles")
                             .option("cloudFiles.format", "json")
                             .schema(schema)
-                            .load(f"{self.location}/kafka-raw")
+                            .load(f"{self.dataset_path}/kafka-raw")
                             .withColumn("timestamp", (F.col("timestamp")/1000).cast("timestamp"))  
                             .withColumn("year_month", F.date_format("timestamp", "yyyy-MM"))
                       .writeStream
-                          .option("checkpointLocation", f"{self.checkpoint}/bronze")
+                          .option("checkpointLocation", f"{self.checkpoint_path}/bronze")
                           .option("mergeSchema", True)
                           .partitionBy("topic", "year_month")
                           .trigger(availableNow=True)
                           .table("bronze"))
 
         query.awaitTermination()
-        
-        
-    def __upsert_data(self, microBatchDF, batch):
+    
+    @staticmethod
+    def upsert_orders_batch(microBatchDF, batch):
         microBatchDF.createOrReplaceTempView("orders_microbatch")
     
         sql_query = """
@@ -130,7 +178,8 @@ class CourseDataset:
 
         microBatchDF.sparkSession.sql(sql_query)
         
-    def __batch_upsert(self, microBatchDF, batchId):
+    @staticmethod
+    def upsert_customers_batch(microBatchDF, batchId):
         window = Window.partitionBy("customer_id").orderBy(F.col("row_time").desc())
         
         (microBatchDF.filter(F.col("row_status").isin(["insert", "update"]))
@@ -151,8 +200,8 @@ class CourseDataset:
 
         microBatchDF.sparkSession.sql(query)
         
-    
-    def __type2_upsert(self, microBatchDF, batch):
+    @staticmethod
+    def upsert_books_batch(microBatchDF, batch):
         microBatchDF.createOrReplaceTempView("updates")
 
         sql_query = """
@@ -190,9 +239,9 @@ class CourseDataset:
                    .dropDuplicates(["order_id", "order_timestamp"]))
         
         query = (deduped_df.writeStream
-                   .foreachBatch(self.__upsert_data)
+                   .foreachBatch(CourseDataset.upsert_orders_batch)
                    .outputMode("update")
-                   .option("checkpointLocation", f"{self.checkpoint}/orders_silver")
+                   .option("checkpointLocation", f"{self.checkpoint_path}/orders_silver")
                    .trigger(availableNow=True)
                    .start())
 
@@ -203,7 +252,7 @@ class CourseDataset:
         
         schema = "customer_id STRING, email STRING, first_name STRING, last_name STRING, gender STRING, street STRING, city STRING, country_code STRING, row_status STRING, row_time timestamp"
         
-        df_country_lookup = spark.read.json(f"{dataset_bookstore}/country_lookup")
+        df_country_lookup = spark.read.json(f"{self.dataset_path}/country_lookup")
 
         query = (spark.readStream
                           .table("bronze")
@@ -212,9 +261,9 @@ class CourseDataset:
                           .select("v.*")
                           .join(F.broadcast(df_country_lookup), F.col("country_code") == F.col("code") , "inner")
                        .writeStream
-                          .foreachBatch(self.__batch_upsert)
+                          .foreachBatch(CourseDataset.upsert_customers_batch)
                           .outputMode("update")
-                          .option("checkpointLocation", f"{self.checkpoint}/customers_silver")
+                          .option("checkpointLocation", f"{self.checkpoint_path}/customers_silver")
                           .trigger(availableNow=True)
                           .start()
                 )
@@ -230,8 +279,8 @@ class CourseDataset:
                         .select(F.from_json(F.col("value").cast("string"), schema).alias("v"))
                         .select("v.*")
                      .writeStream
-                        .foreachBatch(self.__type2_upsert)
-                        .option("checkpointLocation", f"{self.checkpoint}/books_silver")
+                        .foreachBatch(CourseDataset.upsert_books_batch)
+                        .option("checkpointLocation", f"{self.checkpoint_path}/books_silver")
                         .trigger(availableNow=True)
                         .start()
                 )
@@ -249,14 +298,10 @@ class CourseDataset:
 # COMMAND ----------
 
 data_source_uri = "s3://dalhussein-courses/DE-Pro/datasets/bookstore/v1/"
-dataset_bookstore = 'dbfs:/mnt/demo-datasets/DE-Pro/bookstore'
-spark.conf.set(f"dataset.bookstore", dataset_bookstore)
-spark.conf.set("fs.s3a.endpoint", "s3.eu-west-3.amazonaws.com")
-spark.conf.set("fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider")
-checkpoint_path = "dbfs:/mnt/demo_pro/checkpoints"
-data_catalog = 'hive_metastore'
 db_name = "bookstore_eng_pro"
 
-bookstore = CourseDataset(data_source_uri, dataset_bookstore, checkpoint_path, data_catalog, db_name)
-bookstore.download_dataset()
+data_catalog = spark.sql("SELECT current_catalog()").collect()[0][0]
+bookstore = CourseDataset(data_source_uri, data_catalog, db_name)
+
 bookstore.create_database()
+bookstore.download_dataset()

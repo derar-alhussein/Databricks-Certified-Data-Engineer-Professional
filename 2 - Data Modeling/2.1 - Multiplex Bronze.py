@@ -11,12 +11,12 @@
 
 # COMMAND ----------
 
-files = dbutils.fs.ls(f"{dataset_bookstore}/kafka-raw")
+files = dbutils.fs.ls(f"{bookstore.dataset_path}/kafka-raw")
 display(files)
 
 # COMMAND ----------
 
-df_raw = spark.read.json(f"{dataset_bookstore}/kafka-raw")
+df_raw = spark.read.json(f"{bookstore.dataset_path}/kafka-raw")
 display(df_raw)
 
 # COMMAND ----------
@@ -31,11 +31,11 @@ def process_bronze():
                         .format("cloudFiles")
                         .option("cloudFiles.format", "json")
                         .schema(schema)
-                        .load(f"{dataset_bookstore}/kafka-raw")
+                        .load(f"{bookstore.dataset_path}/kafka-raw")
                         .withColumn("timestamp", (F.col("timestamp")/1000).cast("timestamp"))  
                         .withColumn("year_month", F.date_format("timestamp", "yyyy-MM"))
                   .writeStream
-                      .option("checkpointLocation", "dbfs:/mnt/demo_pro/checkpoints/bronze")
+                      .option("checkpointLocation", f"{bookstore.checkpoint_path}/bronze")
                       .option("mergeSchema", True)
                       .partitionBy("topic", "year_month")
                       .trigger(availableNow=True)

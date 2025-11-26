@@ -26,7 +26,7 @@ schema = "customer_id STRING, email STRING, first_name STRING, last_name STRING,
                 F.lit("requested").alias("status"))
     .writeStream
         .outputMode("append")
-        .option("checkpointLocation", "dbfs:/mnt/demo_pro/checkpoints/delete_requests")
+        .option("checkpointLocation", f"{bookstore.checkpoint_path}/delete_requests")
         .trigger(availableNow=True)
         .table("delete_requests")
 )
@@ -58,12 +58,12 @@ def process_deletes(microBatchDF, batchId):
         .filter("_change_type = 'delete'")
         .createOrReplaceTempView("deletes"))
 
-    microBatchDF._jdf.sparkSession().sql("""
+    microBatchDF.sparkSession.sql("""
         DELETE FROM customers_orders
         WHERE customer_id IN (SELECT customer_id FROM deletes)
     """)
     
-    microBatchDF._jdf.sparkSession().sql("""
+    microBatchDF.sparkSession.sql("""
         MERGE INTO delete_requests r
         USING deletes d
         ON d.customer_id = r.customer_id
@@ -75,7 +75,7 @@ def process_deletes(microBatchDF, batchId):
 
 (deleteDF.writeStream
          .foreachBatch(process_deletes)
-         .option("checkpointLocation", "dbfs:/mnt/demo_pro/checkpoints/deletes")
+         .option("checkpointLocation", f"{bookstore.checkpoint_path}/deletes")
          .trigger(availableNow=True)
          .start())
 

@@ -33,12 +33,17 @@
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC SELECT v.*
-# MAGIC FROM (
-# MAGIC   SELECT from_json(cast(value AS STRING), "order_id STRING, order_timestamp Timestamp, customer_id STRING, quantity BIGINT, total BIGINT, books ARRAY<STRUCT<book_id STRING, quantity BIGINT, subtotal BIGINT>>") v
-# MAGIC   FROM bronze_tmp
-# MAGIC   WHERE topic = "orders")
+# Explicitly set the checkpoint location for streaming display, as implicit temporary checkpoint locations are not supported in the current workspace.
+
+orders_silver_df = spark.sql("""
+    SELECT v.*
+    FROM (
+    SELECT from_json(cast(value AS STRING), "order_id STRING, order_timestamp Timestamp, customer_id STRING, quantity BIGINT, total BIGINT, books ARRAY<STRUCT<book_id STRING, quantity BIGINT, subtotal BIGINT>>") v
+    FROM bronze_tmp
+    WHERE topic = "orders")
+""")
+
+display(orders_silver_df, checkpointLocation = f"{bookstore.checkpoint_path}/tmp/orders_silver_{time.time()}")
 
 # COMMAND ----------
 
@@ -54,7 +59,7 @@
 
 query = (spark.table("orders_silver_tmp")
                .writeStream
-               .option("checkpointLocation", "dbfs:/mnt/demo_pro/checkpoints/orders_silver")
+               .option("checkpointLocation", f"{bookstore.checkpoint_path}/orders_silver")
                .trigger(availableNow=True)
                .table("orders_silver"))
 
@@ -71,7 +76,7 @@ query = (spark.readStream.table("bronze")
         .select(F.from_json(F.col("value").cast("string"), json_schema).alias("v"))
         .select("v.*")
      .writeStream
-        .option("checkpointLocation", "dbfs:/mnt/demo_pro/checkpoints/orders_silver")
+        .option("checkpointLocation", f"{bookstore.checkpoint_path}/orders_silver")
         .trigger(availableNow=True)
         .table("orders_silver"))
 

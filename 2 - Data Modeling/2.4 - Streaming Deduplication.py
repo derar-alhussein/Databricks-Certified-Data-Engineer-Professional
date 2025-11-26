@@ -70,7 +70,7 @@ def upsert_data(microBatchDF, batch):
 
 query = (deduped_df.writeStream
                    .foreachBatch(upsert_data)
-                   .option("checkpointLocation", "dbfs:/mnt/demo_pro/checkpoints/orders_silver")
+                   .option("checkpointLocation", f"{bookstore.checkpoint_path}/orders_silver")
                    .trigger(availableNow=True)
                    .start())
 

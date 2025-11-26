@@ -19,7 +19,7 @@ def process_books_sales():
                   .join(books_df, orders_df.book.book_id == books_df.book_id, "inner")
                   .writeStream
                      .outputMode("append")
-                     .option("checkpointLocation", "dbfs:/mnt/demo_pro/checkpoints/books_sales")
+                     .option("checkpointLocation", f"{bookstore.checkpoint_path}/books_sales")
                      .trigger(availableNow=True)
                      .table("books_sales")
     )

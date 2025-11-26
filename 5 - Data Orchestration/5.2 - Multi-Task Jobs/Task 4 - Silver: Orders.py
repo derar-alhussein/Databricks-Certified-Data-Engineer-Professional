@@ -37,7 +37,7 @@ def upsert_data(microBatchDF, batch):
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC 
+# MAGIC
 # MAGIC CREATE TABLE IF NOT EXISTS orders_silver
 # MAGIC (order_id STRING, order_timestamp Timestamp, customer_id STRING, quantity BIGINT, total BIGINT, books ARRAY<STRUCT<book_id STRING, quantity BIGINT, subtotal BIGINT>>)
 
@@ -45,7 +45,7 @@ def upsert_data(microBatchDF, batch):
 
 query = (deduped_df.writeStream
                    .foreachBatch(upsert_data)
-                   .option("checkpointLocation", "dbfs:/mnt/demo_pro/checkpoints/orders_silver")
+                   .option("checkpointLocation", f"{bookstore.checkpoint_path}/orders_silver")
                    .trigger(availableNow=True)
                    .start())
 

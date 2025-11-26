@@ -41,7 +41,7 @@ def batch_upsert(microBatchDF, batchId):
 
 # COMMAND ----------
 
-df_country_lookup = spark.read.json(f"{dataset_bookstore}/country_lookup")
+df_country_lookup = spark.read.json(f"{bookstore.dataset_path}/country_lookup")
 
 # COMMAND ----------
 
@@ -53,7 +53,7 @@ query = (spark.readStream
                   .join(F.broadcast(df_country_lookup), F.col("country_code") == F.col("code") , "inner")
                .writeStream
                   .foreachBatch(batch_upsert)
-                  .option("checkpointLocation", "dbfs:/mnt/demo_pro/checkpoints/customers_silver")
+                  .option("checkpointLocation", f"{bookstore.checkpoint_path}/customers_silver")
                   .trigger(availableNow=True)
                   .start()
           )
