@@ -8,7 +8,7 @@ c1.get_volume()
 
 # COMMAND ----------
 
-from helpers.cube_notebook import Cube
+#from helpers.cube_notebook import Cube
 
 # COMMAND ----------
 

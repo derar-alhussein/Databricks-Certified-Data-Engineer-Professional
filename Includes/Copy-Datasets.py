@@ -10,7 +10,9 @@ def path_exists(path):
     dbutils.fs.ls(path)
     return True
   except Exception as e:
-    if 'java.io.FileNotFoundException' in str(e):
+    msg = str(e)
+    if ("com.databricks.sql.io.CloudFileNotFoundException" in msg
+        or "java.io.FileNotFoundException" in msg):
       return False
     else:
       raise
@@ -54,8 +56,7 @@ class CourseDataset:
         print(f"Data catalog: {self.catalog_name}")
         print(f"Schema: {self.db_name}")
 
-        if self.catalog_name != "hive_metastore":
-            self.__create_volume()
+        self.__configure_directories()
     
     
     def clean_up(self):
@@ -72,15 +73,20 @@ class CourseDataset:
         print("Done")
 
 
-    def __create_volume(self):
+    def __configure_directories(self):
         dataset_volume_name = "dataset"
         checkpoints_volume_name = "checkpoints"
-        volume_root = f"/Volumes/{self.catalog_name}/{self.db_name}"
-        self.dataset_path = f"{volume_root}/{dataset_volume_name}"
-        self.checkpoint_path = f"{volume_root}/{checkpoints_volume_name}"
-        
-        spark.sql(f"CREATE VOLUME IF NOT EXISTS {dataset_volume_name}")
-        spark.sql(f"CREATE VOLUME IF NOT EXISTS {checkpoints_volume_name}")
+
+        if self.catalog_name == "hive_metastore":
+            self.dataset_path = 'dbfs:/mnt/demo-datasets/DE-Pro/bookstore'
+            self.checkpoint_path = "dbfs:/mnt/demo_pro/checkpoints"
+        else:
+            volume_root = f"/Volumes/{self.catalog_name}/{self.db_name}"
+            self.dataset_path = f"{volume_root}/{dataset_volume_name}"
+            self.checkpoint_path = f"{volume_root}/{checkpoints_volume_name}"
+            
+            spark.sql(f"CREATE VOLUME IF NOT EXISTS {dataset_volume_name}")
+            spark.sql(f"CREATE VOLUME IF NOT EXISTS {checkpoints_volume_name}")
     
     def __get_index(self, dir):
         try:
@@ -106,6 +112,7 @@ class CourseDataset:
         index = self.__get_index(raw_dir)
         if index > max:
             print("No more data to load\n")
+            return 0
 
         elif all == True:
             while index <= max:
@@ -114,19 +121,31 @@ class CourseDataset:
         else:
             self.__load_json_file(index, streaming_dir, raw_dir)
             index += 1
+
+        return 1
     
     def load_new_data(self, num_files = 1):
         streaming_dir = f"{self.dataset_path}/kafka-streaming"
         raw_dir = f"{self.dataset_path}/kafka-raw"
         for i in range(num_files):
             self.__load_data(10, streaming_dir, raw_dir)
-        
-    
+
     def load_books_updates(self):
         streaming_dir = f"{self.dataset_path}/books-updates-streaming"
         raw_dir = f"{self.dataset_path}/kafka-raw/books-updates"
         self.__load_data(5, streaming_dir, raw_dir)
-        
+
+    def load_pipeline_data(self):
+        streaming_dir = f"{self.dataset_path}/kafka-streaming"
+        raw_dir = f"{self.dataset_path}/kafka-raw-etl"
+        n = self.__load_data(10, streaming_dir, raw_dir)
+
+        books_streaming_dir = f"{self.dataset_path}/books-updates-streaming"
+        books_raw_dir = f"{self.dataset_path}/kafka-raw-etl/books-updates"
+        m = self.__load_data(5, books_streaming_dir, books_raw_dir)
+
+        return n + m
+ 
     def process_bronze(self):
         schema = "key BINARY, value BINARY, topic STRING, partition LONG, offset LONG, timestamp LONG"
 
@@ -281,17 +300,8 @@ class CourseDataset:
 data_source_uri = "s3://dalhussein-courses/DE-Pro/datasets/bookstore/v1/"
 db_name = "bookstore_eng_pro"
 
-catalogs = spark.sql("SHOW CATALOGS").collect()
-hive_exists = any(row.catalog == 'hive_metastore' for row in catalogs)
-if hive_exists:
-    data_catalog = 'hive_metastore'
-    bookstore_dataset = 'dbfs:/mnt/demo-datasets/DE-Pro/bookstore'
-    bookstore_checkpoint = "dbfs:/mnt/demo_pro/checkpoints"
-
-    bookstore = CourseDataset(data_source_uri, data_catalog, db_name, bookstore_dataset, bookstore_checkpoint)
-else:
-    data_catalog = spark.sql("SELECT current_catalog()").collect()[0][0]
-    bookstore = CourseDataset(data_source_uri, data_catalog, db_name)
+data_catalog = spark.sql("SELECT current_catalog()").collect()[0][0]
+bookstore = CourseDataset(data_source_uri, data_catalog, db_name)
 
 bookstore.create_database()
 bookstore.download_dataset()

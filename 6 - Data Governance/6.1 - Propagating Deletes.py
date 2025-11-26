@@ -58,12 +58,12 @@ def process_deletes(microBatchDF, batchId):
         .filter("_change_type = 'delete'")
         .createOrReplaceTempView("deletes"))
 
-    microBatchDF._jdf.sparkSession().sql("""
+    microBatchDF.sparkSession.sql("""
         DELETE FROM customers_orders
         WHERE customer_id IN (SELECT customer_id FROM deletes)
     """)
     
-    microBatchDF._jdf.sparkSession().sql("""
+    microBatchDF.sparkSession.sql("""
         MERGE INTO delete_requests r
         USING deletes d
         ON d.customer_id = r.customer_id
